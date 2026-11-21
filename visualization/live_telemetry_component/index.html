@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<script src="./plotly.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #FFFFFF;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  #chart-wrap {
+    width: 100%;
+    height: 100%;
+    padding: 4px 6px;
+    background: #FFFFFF;
+  }
+  #chart {
+    width: 100%;
+    height: 100%;
+  }
+</style>
+</head>
+<body>
+<div id="chart-wrap">
+  <div id="chart"></div>
+</div>
+<script>
+(function () {
+  const gd = document.getElementById("chart");
+  const wrap = document.getElementById("chart-wrap");
+  const config = { displayModeBar: false, responsive: false };
+
+  let currentHeight = 0;
+  let lastWidth = 0;
+  let isPlotted = false;
+  let isEmptyState = false;
+  let prevLengths = [];
+  let prevFirstX = [];
+  let prevAxesSig = "";
+  let pendingArgs = null;
+
+  function postToStreamlit(type, payload) {
+    window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, payload), "*");
+  }
+
+  function hasNumericTraces(data) {
+    if (!Array.isArray(data) || data.length === 0) return false;
+    return data.some(t => Array.isArray(t.x) && t.x.length > 0);
+  }
+
+  function cloneLayout(rawLayout, w, h) {
+    const layout = Object.assign({}, rawLayout || {});
+    delete layout.template;
+    layout.autosize = false;
+    layout.width = w;
+    layout.height = h;
+    return layout;
+  }
+
+  function axesRangeSignature(layout) {
+    const xr = layout && layout.xaxis ? layout.xaxis.range : null;
+    const yr = layout && layout.yaxis ? layout.yaxis.range : null;
+    return JSON.stringify([xr, yr]);
+  }
+
+  function applyRender(args) {
+    const h = Math.max(120, Number(args.height) || 260);
+    const frameH = h + 10;
+    if (frameH !== currentHeight) {
+      currentHeight = frameH;
+      wrap.style.height = frameH + "px";
+      gd.style.height = h + "px";
+      postToStreamlit("streamlit:setFrameHeight", { height: frameH });
+    }
+
+    const w = Math.floor(gd.clientWidth || wrap.clientWidth || 0);
+    if (w < 40) {
+      pendingArgs = args;
+      return;
+    }
+    pendingArgs = null;
+    lastWidth = w;
+
+    const spec = args.spec || {};
+    const data = Array.isArray(spec.data) ? spec.data : [];
+    const layout = cloneLayout(spec.layout, w, h);
+    const nowEmpty = !hasNumericTraces(data);
+    const axesSig = axesRangeSignature(layout);
+
+    if (isPlotted && isEmptyState && nowEmpty) {
+      return;
+    }
+
+    const canCheckIncremental = (
+      isPlotted &&
+      !isEmptyState &&
+      !nowEmpty &&
+      data.length === prevLengths.length &&
+      data.every((t, i) => {
+        const xs = Array.isArray(t.x) ? t.x : [];
+        return xs.length >= prevLengths[i] && (prevLengths[i] === 0 || xs[0] === prevFirstX[i]);
+      })
+    );
+
+    if (canCheckIncremental) {
+      const anyGrew = data.some((t, i) => (Array.isArray(t.x) ? t.x.length : 0) > prevLengths[i]);
+      if (!anyGrew) {
+        if (axesSig !== prevAxesSig) {
+          const relayoutPatch = {};
+          if (layout.xaxis && layout.xaxis.range) relayoutPatch["xaxis.range"] = layout.xaxis.range;
+          if (layout.yaxis && layout.yaxis.range) relayoutPatch["yaxis.range"] = layout.yaxis.range;
+          if (Object.keys(relayoutPatch).length > 0) Plotly.relayout(gd, relayoutPatch);
+          prevAxesSig = axesSig;
+        }
+        return;
+      }
+
+      const traceIndices = [];
+      const appendX = [];
+      const appendY = [];
+      data.forEach((t, i) => {
+        const xs = Array.isArray(t.x) ? t.x : [];
+        const ys = Array.isArray(t.y) ? t.y : [];
+        if (xs.length > prevLengths[i]) {
+          traceIndices.push(i);
+          appendX.push(xs.slice(prevLengths[i]));
+          appendY.push(ys.slice(prevLengths[i]));
+        }
+      });
+
+      if (traceIndices.length > 0) {
+        Plotly.extendTraces(gd, { x: appendX, y: appendY }, traceIndices);
+      }
+      if (axesSig !== prevAxesSig) {
+        const relayoutPatch = {};
+        if (layout.xaxis && layout.xaxis.range) relayoutPatch["xaxis.range"] = layout.xaxis.range;
+        if (layout.yaxis && layout.yaxis.range) relayoutPatch["yaxis.range"] = layout.yaxis.range;
+        if (Object.keys(relayoutPatch).length > 0) Plotly.relayout(gd, relayoutPatch);
+        prevAxesSig = axesSig;
+      }
+
+      prevLengths = data.map(t => (Array.isArray(t.x) ? t.x.length : 0));
+      prevFirstX = data.map(t => (Array.isArray(t.x) && t.x.length > 0 ? t.x[0] : null));
+      return;
+    }
+
+    if (!isPlotted) {
+      Plotly.newPlot(gd, data, layout, config);
+      isPlotted = true;
+    } else {
+      Plotly.react(gd, data, layout, config);
+    }
+
+    isEmptyState = nowEmpty;
+    prevLengths = data.map(t => (Array.isArray(t.x) ? t.x.length : 0));
+    prevFirstX = data.map(t => (Array.isArray(t.x) && t.x.length > 0 ? t.x[0] : null));
+    prevAxesSig = axesSig;
+  }
+
+  let resizeRaf = null;
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => {
+      const nw = Math.floor(gd.clientWidth || 0);
+      if (nw < 40) return;
+      if (pendingArgs) {
+        applyRender(pendingArgs);
+        return;
+      }
+      if (isPlotted && Math.abs(nw - lastWidth) >= 2) {
+        lastWidth = nw;
+        if (resizeRaf) cancelAnimationFrame(resizeRaf);
+        resizeRaf = requestAnimationFrame(() => {
+          Plotly.relayout(gd, { width: nw });
+        });
+      }
+    });
+    ro.observe(wrap);
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data || event.data.type !== "streamlit:render") return;
+    applyRender(event.data.args || {});
+  });
+
+  postToStreamlit("streamlit:componentReady", { apiVersion: 1 });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #FFFFFF;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    user-select: none;
+  }
+  #wrap {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #FFFFFF;
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  svg#city-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+    background: #FFFFFF;
+  }
+  .road-seg {
+    stroke-linecap: round;
+    transition: stroke 0.35s ease, stroke-width 0.35s ease, opacity 0.25s ease;
+    cursor: pointer;
+  }
+  .road-shadow {
+    stroke-linecap: round;
+    pointer-events: none;
+  }
+  .road-label {
+    font-size: 10px;
+    font-weight: 600;
+    fill: #536963;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    paint-order: stroke fill;
+    stroke: #FFFFFF;
+    stroke-width: 3px;
+    stroke-linejoin: round;
+  }
+  .node-circle {
+    fill: #FFFFFF;
+    stroke: #1F3D3A;
+    stroke-width: 2.4px;
+    cursor: pointer;
+    transition: r 0.15s ease;
+  }
+  .node-circle:hover {
+    stroke-width: 3.2px;
+  }
+  .node-label-bg {
+    fill: #D9EDE5;
+    stroke: #D7E6DF;
+    stroke-width: 1px;
+    rx: 5px;
+    ry: 5px;
+    pointer-events: none;
+  }
+  .node-label-txt {
+    font-size: 10.5px;
+    font-weight: 700;
+    fill: #1F3D3A;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+  }
+  .veh-group {
+    cursor: pointer;
+  }
+  #legend {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+    background: rgba(237, 246, 243, 0.94);
+    border: 1px solid #D7E6DF;
+    border-radius: 10px;
+    padding: 7px 11px;
+    font-size: 11px;
+    color: #1F3D3A;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 2px 8px rgba(31, 61, 58, 0.06);
+    pointer-events: none;
+  }
+  .leg-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    line-height: 1.25;
+    font-weight: 500;
+  }
+  .leg-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .leg-line {
+    width: 14px;
+    height: 3.5px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+  #tooltip {
+    position: absolute;
+    display: none;
+    pointer-events: none;
+    z-index: 20;
+    max-width: 270px;
+    background: #FFFFFF;
+    border: 1px solid #D7E6DF;
+    border-left: 3.5px solid #34A58A;
+    border-radius: 9px;
+    padding: 8px 10px;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: #1F3D3A;
+    box-shadow: 0 6px 16px rgba(31, 61, 58, 0.12);
+  }
+  #tooltip.alert {
+    border-left-color: #E5484D;
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <svg id="city-svg" preserveAspectRatio="xMidYMid meet">
+    <g id="layer-shadows"></g>
+    <g id="layer-roads"></g>
+    <g id="layer-road-labels"></g>
+    <g id="layer-nodes"></g>
+    <g id="layer-vehicles"></g>
+    <g id="layer-node-labels"></g>
+  </svg>
+  <div id="legend">
+    <div class="leg-row"><span class="leg-dot" style="background:#1F3D3A;"></span>Moving</div>
+    <div class="leg-row"><span class="leg-dot" style="background:#5A8F7B;"></span>Queued</div>
+    <div class="leg-row"><span class="leg-line" style="background:#98A6A1;"></span>Idle</div>
+    <div class="leg-row"><span class="leg-line" style="background:#34A58A;"></span>Low</div>
+    <div class="leg-row"><span class="leg-line" style="background:#E87C80;"></span>Moderate</div>
+    <div class="leg-row"><span class="leg-line" style="background:#E5484D;"></span>High</div>
+    <div class="leg-row"><span class="leg-line" style="background:#B8292E;"></span>Severe</div>
+  </div>
+  <div id="tooltip"></div>
+</div>
+
+<script>
+(function () {
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("city-svg");
+  const layerShadows = document.getElementById("layer-shadows");
+  const layerRoads = document.getElementById("layer-roads");
+  const layerRoadLabels = document.getElementById("layer-road-labels");
+  const layerNodes = document.getElementById("layer-nodes");
+  const layerVehicles = document.getElementById("layer-vehicles");
+  const layerNodeLabels = document.getElementById("layer-node-labels");
+  const tooltip = document.getElementById("tooltip");
+
+  let currentTopoSig = "";
+  let currentHeight = 390;
+  let lastTick = -1;
+  let roadEls = {};        // road_id -> { line, shadow, label, hoverHtml }
+  let nodePositions = {};  // node_id -> { x, y }
+  let vehPool = {};        // vehicle_id -> { g, halo, core, arrow, x, y, sx, sy, tx, ty, angle, sAngle, tAngle, hoverHtml, isWaiting }
+  let animStart = 0;
+  let animDur = 900;
+  let rafId = null;
+
+  function postToStreamlit(type, extra) {
+    window.parent.postMessage(Object.assign({ isStreamlitMessage: true, type: type }, extra || {}), "*");
+  }
+
+  function el(tag, attrs) {
+    const node = document.createElementNS(SVG_NS, tag);
+    if (attrs) {
+      for (const k in attrs) node.setAttribute(k, attrs[k]);
+    }
+    return node;
+  }
+
+  function showTip(evt, html, isAlert) {
+    tooltip.innerHTML = html;
+    tooltip.className = isAlert ? "alert" : "";
+    tooltip.style.display = "block";
+    const rect = document.getElementById("wrap").getBoundingClientRect();
+    let left = evt.clientX - rect.left + 14;
+    let top = evt.clientY - rect.top + 14;
+    if (left + 250 > rect.width) left = Math.max(8, evt.clientX - rect.left - 250);
+    if (top + 110 > rect.height) top = Math.max(8, evt.clientY - rect.top - 105);
+    tooltip.style.left = left + "px";
+    tooltip.style.top = top + "px";
+  }
+
+  function hideTip() {
+    tooltip.style.display = "none";
+  }
+
+  function buildTransform(nodes, heightPx) {
+    const W = 860;
+    const H = Math.max(320, Math.round(heightPx * (860 / 920)));
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    nodes.forEach(n => {
+      if (n.x < minX) minX = n.x;
+      if (n.x > maxX) maxX = n.x;
+      if (n.y < minY) minY = n.y;
+      if (n.y > maxY) maxY = n.y;
+    });
+    const spanX = Math.max(1, maxX - minX);
+    const spanY = Math.max(1, maxY - minY);
+    const padLeft = 175, padRight = 115, padTop = 52, padBot = 52;
+    const availW = W - padLeft - padRight;
+    const availH = H - padTop - padBot;
+    const scale = Math.min(availW / spanX, availH / spanY);
+    const cx = padLeft + (availW - spanX * scale) / 2;
+    const cy = padTop + (availH - spanY * scale) / 2;
+
+    return function (x, y) {
+      return {
+        x: cx + (x - minX) * scale,
+        // Invert Y so higher simulation north sits near top
+        y: cy + (maxY - y) * scale,
+        scale: scale
+      };
+    };
+  }
+
+  function buildStaticNetwork(args) {
+    const nodes = args.nodes || [];
+    const roads = args.roads || [];
+    const h = args.height || 390;
+    const project = buildTransform(nodes, h);
+
+    layerShadows.innerHTML = "";
+    layerRoads.innerHTML = "";
+    layerRoadLabels.innerHTML = "";
+    layerNodes.innerHTML = "";
+    layerNodeLabels.innerHTML = "";
+    roadEls = {};
+    nodePositions = {};
+
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    nodes.forEach(n => {
+      const p = project(n.x, n.y);
+      nodePositions[n.id] = { x: p.x, y: p.y, rawX: n.x, rawY: n.y, name: n.name, connected: n.connected };
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    });
+    const midX = (minX + maxX) / 2;
+
+    // 1. Static Road Segments & Shadows (drawn once per topology!)
+    roads.forEach(r => {
+      const u = nodePositions[r.from];
+      const v = nodePositions[r.to];
+      if (!u || !v) return;
+      const dx = v.x - u.x, dy = v.y - u.y;
+      const len = Math.hypot(dx, dy) || 1;
+      // Mirror _offset_segment normal: raw Y was flipped so visual right-hand offset separates bidirectional lanes cleanly
+      const laneOffset = 9.5;
+      const nx = (dy / len) * laneOffset;
+      const ny = (-dx / len) * laneOffset;
+      const x0 = u.x + nx, y0 = u.y + ny;
+      const x1 = v.x + nx, y1 = v.y + ny;
+
+      const shadow = el("line", {
+        x1: x0 + 2.2, y1: y0 + 3.2, x2: x1 + 2.2, y2: y1 + 3.2,
+        stroke: "rgba(31, 61, 58, 0.08)",
+        "stroke-width": 5,
+        class: "road-shadow"
+      });
+      layerShadows.appendChild(shadow);
+
+      const line = el("line", {
+        x1: x0, y1: y0, x2: x1, y2: y1,
+        stroke: r.color,
+        "stroke-width": r.width,
+        class: "road-seg"
+      });
+      line.addEventListener("mousemove", (evt) => showTip(evt, roadEls[r.id].hoverHtml, r.isAlert));
+      line.addEventListener("mouseleave", hideTip);
+      layerRoads.appendChild(line);
+
+      const lbl = el("text", {
+        x: (x0 + x1) / 2,
+        y: (y0 + y1) / 2,
+        class: "road-label"
+      });
+      lbl.textContent = r.label || "";
+      lbl.style.display = r.label ? "block" : "none";
+      layerRoadLabels.appendChild(lbl);
+
+      roadEls[r.id] = {
+        line: line,
+        shadow: shadow,
+        label: lbl,
+        x0: x0, y0: y0, x1: x1, y1: y1,
+        hoverHtml: r.hover
+      };
+    });
+
+    // 2. Static Intersection Nodes & Labels
+    nodes.forEach(n => {
+      const p = nodePositions[n.id];
+      const c = el("circle", { cx: p.x, cy: p.y, r: 7.5, class: "node-circle" });
+      const nodeTip = "<b>" + n.name + "</b> (" + n.id + ")<br>Connected segments: " + n.connected;
+      c.addEventListener("mousemove", (evt) => showTip(evt, nodeTip, false));
+      c.addEventListener("mouseleave", hideTip);
+      layerNodes.appendChild(c);
+
+      let dx = 0, dy = 21;
+      if (p.y <= minY + 30) { dx = 0; dy = -21; }
+      else if (p.y >= maxY - 30) { dx = 0; dy = 21; }
+      else if (p.x <= minX + 45) { dx = -48; dy = 0; }
+      else if (p.x >= maxX - 45) { dx = 48; dy = 0; }
+      else { dx = p.x >= midX ? 28 : -28; dy = -18; }
+
+      const lx = p.x + dx, ly = p.y + dy;
+      const tw = Math.max(46, n.id.length * 7.2 + 12);
+      const bg = el("rect", { x: lx - tw / 2, y: ly - 9.5, width: tw, height: 19, class: "node-label-bg" });
+      const txt = el("text", { x: lx, y: ly, class: "node-label-txt" });
+      txt.textContent = n.id;
+      layerNodeLabels.appendChild(bg);
+      layerNodeLabels.appendChild(txt);
+    });
+  }
+
+  function updateRoadsInPlace(roads, showLabels) {
+    roads.forEach(r => {
+      const entry = roadEls[r.id];
+      if (!entry) return;
+      entry.line.setAttribute("stroke", r.color);
+      entry.line.setAttribute("stroke-width", r.width);
+      entry.shadow.setAttribute("stroke-width", r.width + 2.6);
+      entry.hoverHtml = r.hover;
+      if (showLabels && r.label) {
+        entry.label.textContent = r.label;
+        entry.label.style.display = "block";
+      } else {
+        entry.label.style.display = "none";
+      }
+    });
+  }
+
+  function lerpAngle(a, b, t) {
+    let diff = ((b - a + 540) % 360) - 180;
+    return a + diff * t;
+  }
+
+  function stepAnimation(now) {
+    const t = Math.min(1, (now - animStart) / Math.max(1, animDur));
+    // Smooth linear-eased interpolation matching continuous vehicle motion
+    const ease = t;
+    let activeMotion = false;
+
+    for (const vid in vehPool) {
+      const v = vehPool[vid];
+      const cx = v.sx + (v.tx - v.sx) * ease;
+      const cy = v.sy + (v.ty - v.sy) * ease;
+      const ca = lerpAngle(v.sAngle, v.tAngle, ease);
+      v.x = cx;
+      v.y = cy;
+      v.angle = ca;
+      v.g.setAttribute("transform", "translate(" + cx.toFixed(2) + "," + cy.toFixed(2) + ")");
+      v.arrow.setAttribute("transform", "rotate(" + ca.toFixed(1) + ") translate(0, -10.5)");
+      if (t < 1 && (Math.abs(v.tx - v.sx) > 0.2 || Math.abs(v.ty - v.sy) > 0.2)) {
+        activeMotion = true;
+      }
+    }
+
+    if (activeMotion && t < 1) {
+      rafId = requestAnimationFrame(stepAnimation);
+    } else {
+      rafId = null;
+    }
+  }
+
+  function updateVehiclesInPlace(vehicles, snapImmediate) {
+    const incomingIds = new Set();
+
+    vehicles.forEach(v => {
+      incomingIds.add(v.id);
+      let tx = null, ty = null, targetAngle = 0;
+
+      if (v.roadId && roadEls[v.roadId]) {
+        const seg = roadEls[v.roadId];
+        const ratio = Math.max(0, Math.min(1, v.progress));
+        tx = seg.x0 + (seg.x1 - seg.x0) * ratio;
+        ty = seg.y0 + (seg.y1 - seg.y0) * ratio;
+        targetAngle = Math.atan2(seg.x1 - seg.x0, -(seg.y1 - seg.y0)) * 180 / Math.PI;
+      } else if (v.nodeId && nodePositions[v.nodeId]) {
+        const np = nodePositions[v.nodeId];
+        tx = np.x;
+        ty = np.y;
+        if (v.nextNodeId && nodePositions[v.nextNodeId]) {
+          const nxt = nodePositions[v.nextNodeId];
+          targetAngle = Math.atan2(nxt.x - np.x, -(nxt.y - np.y)) * 180 / Math.PI;
+        }
+      }
+      if (tx === null) return;
+
+      const coreColor = v.waiting ? "#5A8F7B" : "#1F3D3A";
+      const haloColor = v.waiting ? "#5A8F7B" : "#34A58A";
+
+      let obj = vehPool[v.id];
+      if (!obj) {
+        const g = el("g", { class: "veh-group", transform: "translate(" + tx + "," + ty + ")" });
+        const halo = el("circle", { cx: 0, cy: 0, r: 9.5, fill: haloColor, opacity: "0.26" });
+        const core = el("circle", { cx: 0, cy: 0, r: 4.8, fill: coreColor, stroke: "#FFFFFF", "stroke-width": "1.6" });
+        const arrow = el("polygon", {
+          points: "0,-3.2 2.6,2.2 -2.6,2.2",
+          fill: coreColor,
+          transform: "rotate(" + targetAngle + ") translate(0, -10.5)"
+        });
+        g.appendChild(halo);
+        g.appendChild(core);
+        g.appendChild(arrow);
+        g.addEventListener("mousemove", (evt) => showTip(evt, vehPool[v.id].hoverHtml, vehPool[v.id].waiting));
+        g.addEventListener("mouseleave", hideTip);
+        layerVehicles.appendChild(g);
+
+        obj = vehPool[v.id] = {
+          g: g, halo: halo, core: core, arrow: arrow,
+          x: tx, y: ty, sx: tx, sy: ty, tx: tx, ty: ty,
+          angle: targetAngle, sAngle: targetAngle, tAngle: targetAngle,
+          hoverHtml: v.hover, waiting: v.waiting
+        };
+      } else {
+        obj.hoverHtml = v.hover;
+        obj.waiting = v.waiting;
+        obj.halo.setAttribute("fill", haloColor);
+        obj.core.setAttribute("fill", coreColor);
+        obj.arrow.setAttribute("fill", coreColor);
+
+        const jumpDist = Math.hypot(tx - obj.x, ty - obj.y);
+        if (snapImmediate || jumpDist > 220) {
+          obj.sx = obj.tx = obj.x = tx;
+          obj.sy = obj.ty = obj.y = ty;
+          obj.sAngle = obj.tAngle = obj.angle = targetAngle;
+          obj.g.setAttribute("transform", "translate(" + tx.toFixed(2) + "," + ty.toFixed(2) + ")");
+          obj.arrow.setAttribute("transform", "rotate(" + targetAngle.toFixed(1) + ") translate(0, -10.5)");
+        } else {
+          obj.sx = obj.x;
+          obj.sy = obj.y;
+          obj.tx = tx;
+          obj.ty = ty;
+          obj.sAngle = obj.angle;
+          obj.tAngle = targetAngle;
+        }
+      }
+    });
+
+    // Remove vehicles that completed or were cleared on reset
+    for (const vid in vehPool) {
+      if (!incomingIds.has(vid)) {
+        const entry = vehPool[vid];
+        if (entry && entry.g && entry.g.parentNode) {
+          entry.g.parentNode.removeChild(entry.g);
+        }
+        delete vehPool[vid];
+      }
+    }
+
+    if (!snapImmediate) {
+      animStart = performance.now();
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(stepAnimation);
+    }
+  }
+
+  window.addEventListener("message", function (event) {
+    if (!event.data || event.data.type !== "streamlit:render") return;
+    const args = event.data.args || {};
+    const h = args.height || 390;
+
+    if (h !== currentHeight) {
+      currentHeight = h;
+      document.getElementById("wrap").style.height = h + "px";
+      postToStreamlit("streamlit:setFrameHeight", { height: h });
+    }
+
+    const sig = args.topoSig || "";
+    if (sig !== currentTopoSig) {
+      currentTopoSig = sig;
+      vehPool = {};
+      layerVehicles.innerHTML = "";
+      buildStaticNetwork(args);
+      postToStreamlit("streamlit:setFrameHeight", { height: h });
+    }
+
+    const tick = args.tick || 0;
+    const snapImmediate = (tick === 0) || (lastTick < 0) || (tick < lastTick);
+    lastTick = tick;
+
+    updateRoadsInPlace(args.roads || [], Boolean(args.showRoadLabels));
+    updateVehiclesInPlace(args.vehicles || [], snapImmediate);
+  });
+
+  postToStreamlit("streamlit:componentReady", { apiVersion: 1 });
+  postToStreamlit("streamlit:setFrameHeight", { height: 390 });
+})();
+</script>
+</body>
+</html>

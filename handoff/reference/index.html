@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traffic Control Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+<!-- Static reference of the target UI. Dynamic regions have ids and are filled by app.js.
+     Open this file directly in a browser (no build step) to see the target look. -->
+<div class="app">
+
+  <nav class="rail" aria-label="Primary">
+    <div class="logo" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M6 15.8c0-4 6-3.6 6-7.6 0-1.2.8-2 2-2h1.8"/></svg>
+    </div>
+    <button class="rail-btn" aria-label="Overview"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></button>
+    <button class="rail-btn" aria-label="Live simulation"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg></button>
+    <button class="rail-btn" aria-label="Vehicles"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15l1.6-5a2 2 0 011.9-1.4h7a2 2 0 011.9 1.4L19 15"/><rect x="3" y="15" width="18" height="4.5" rx="1.5"/><path d="M7 19.5V21M17 19.5V21"/></svg></button>
+    <button class="rail-btn on" aria-label="Coordination" aria-current="page"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/></svg></button>
+    <button class="rail-btn" aria-label="Analytics"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg></button>
+    <div class="rail-gap"></div>
+    <button class="rail-btn" aria-label="About"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.6a2.5 2.5 0 114 2c-.9.6-1.5 1-1.5 2.2M12 17h.01"/></svg></button>
+    <button class="rail-btn" aria-label="Settings"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1"/></svg></button>
+  </nav>
+
+  <main class="main">
+    <header class="topbar">
+      <h1>Traffic Control Center</h1>
+      <div class="card pill"><span class="dot pulse" aria-hidden="true"></span><span id="live-status">Live Network Status</span></div>
+      <div class="spacer"></div>
+      <div class="card capsule">
+        <span class="time" id="clock">05:22 <small>AM</small></span>
+        <span class="sep" aria-hidden="true"></span>
+        <span class="date"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span id="date">18 Nov</span></span>
+      </div>
+      <div class="card profile">
+        <span class="avatar" aria-hidden="true">OP</span>
+        <span class="who"><strong>Control Operator</strong><span>Metro Smart City</span></span>
+      </div>
+    </header>
+
+    <div class="intro">
+      <div class="intro-text">
+        <h2>Route Decisions Requiring Review</h2>
+        <p>The coordination engine proposed these re-routes. Review each one and approve, edit or reject it.</p>
+      </div>
+      <div class="card kpi lift"><span class="kpi-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8M9 4v3M15 4v3"/><rect x="5" y="6" width="14" height="15" rx="2.5"/><path d="M9 13l2 2 4-4"/></svg></span><span class="kpi-text"><b id="kpi-pending">7</b><span>Pending Review</span></span></div>
+      <div class="card kpi lift"><span class="kpi-icon warn" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5L2.8 19.5h18.4L12 3.5z"/><path d="M12 10v4.5M12 17.2h.01"/></svg></span><span class="kpi-text"><b id="kpi-low">2</b><span>Low Confidence</span></span></div>
+      <div class="card kpi lift"><span class="kpi-icon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4.2l2.8 1.8M9.5 3h5"/></svg></span><span class="kpi-text"><b id="kpi-saved">142 s</b><span>Est. Delay Saved</span></span></div>
+    </div>
+
+    <div class="grid">
+      <!-- LEFT: decision list -->
+      <section class="card list" aria-label="Decision list">
+        <div class="tabs" id="tabs"></div>
+        <div class="cards" id="cards"></div>
+        <button class="key full">View all pending (<span id="pending-count">7</span>)</button>
+      </section>
+
+      <!-- CENTER: review -->
+      <section class="card review" aria-label="Review decision">
+        <div class="review-head">
+          <h3>Review Decision: #<span id="r-id"></span></h3>
+          <span class="badge" id="r-pri"></span>
+          <span class="badge status" id="r-status" hidden></span>
+        </div>
+
+        <div class="map-body">
+          <div class="map-head">
+            <h4>Suggested Route</h4>
+            <span class="chip">Est. time <span id="r-time"></span></span>
+            <span class="chip">Delay saved <b id="r-saved"></b></span>
+            <div class="spacer"></div>
+            <span class="conf">Confidence: <b id="r-conf"></b></span>
+          </div>
+
+          <div class="map-scroll">
+            <div class="map" id="map" role="img" aria-label="Road network map: suggested route in green, current route as a blue dashed line">
+              <div class="layer" id="map-roads"></div>
+              <div id="map-nodes"></div>
+              <div id="map-labels"></div>
+              <div class="zoom">
+                <button class="key" aria-label="Zoom in">+</button>
+                <button class="key" aria-label="Zoom out">&minus;</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="legend">
+            <span><i style="width:26px;height:8px;background:linear-gradient(180deg,#68A883,#3B6A4F);box-shadow:0 0 8px rgba(79,127,99,.5)"></i>Suggested route</span>
+            <span><i style="width:26px;height:5px;border-radius:0;background-image:repeating-linear-gradient(90deg,#6F93BE 0 7px,transparent 7px 11px)"></i>Current route</span>
+            <span><i style="width:14px;height:8px;background:var(--road-idle)"></i>Idle</span>
+            <span><i style="width:14px;height:8px;background:var(--road-low)"></i>Low</span>
+            <span><i style="width:14px;height:9px;background:var(--road-moderate)"></i>Moderate</span>
+            <span><i style="width:14px;height:10px;background:var(--road-high)"></i>High</span>
+          </div>
+        </div>
+
+        <div class="insight">
+          <div class="sunk panel">
+            <h4><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3F7058" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16z"/></svg>AI Explanation</h4>
+            <p id="r-expl"></p>
+            <ul class="bullets" id="r-bullets"></ul>
+          </div>
+          <div class="sunk panel narrow">
+            <h4>Key Factors</h4>
+            <div class="factors" id="r-factors"></div>
+          </div>
+        </div>
+
+        <div class="strip">
+          <div class="cell"><h4>Risks Identified</h4><div id="r-risks"></div></div>
+          <div class="cell"><h4>Estimated Impact</h4><div id="r-impact"></div></div>
+          <div class="cell hist">
+            <div class="donut" id="r-hist" style="width:76px;height:76px"><div style="width:54px;height:54px;font-size:15px" id="r-hist-n"></div></div>
+            <div class="text"><strong>Historical Performance</strong>Similar decisions performed well over the last 90 days.</div>
+          </div>
+          <div class="cell wide">
+            <label for="changes">Make Coordination Changes</label>
+            <textarea id="changes" rows="3" placeholder="Type your changes here..."></textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="key square danger" id="btn-reject" aria-label="Reject decision"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          <button class="key square" id="btn-edit" aria-label="Edit decision"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 00-3-3L5 17v3z"/></svg></button>
+          <button class="key go approve" id="btn-approve">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M7.8 12.3l3 3 5.4-6"/></svg>
+            <span class="t"><strong id="approve-label">Approve</strong><span id="approve-sub">Move to the next review</span></span>
+          </button>
+        </div>
+      </section>
+
+      <!-- RIGHT: stats -->
+      <aside class="side" aria-label="Oversight statistics">
+        <section class="card">
+          <h3>AI Oversight Stats</h3>
+          <div class="stats">
+            <div class="donut" style="width:118px;height:118px;background:conic-gradient(#4F7F63 0 87%,#E0A33A 87% 96%,#C8534E 96% 100%)">
+              <div style="width:82px;height:82px"><strong style="font-size:24px">87%</strong><span style="font-size:10px;font-weight:600;color:var(--muted)">approved</span></div>
+            </div>
+            <div class="legend-col">
+              <div><i style="background:#4F7F63"></i><span>Approved</span><b>87%</b></div>
+              <div><i style="background:#E0A33A"></i><span>Modified</span><b>9%</b></div>
+              <div><i style="background:#C8534E"></i><span>Rejected</span><b>4%</b></div>
+            </div>
+          </div>
+        </section>
+        <section class="card">
+          <h3>Impact This Week</h3>
+          <div class="rows">
+            <div><span>Total decisions</span><b>24</b></div>
+            <div><span>Delay saved</span><b class="g">14 min 22 s</b></div>
+            <div><span>Queue reduction</span><b class="g">31%</b></div>
+            <div><span>Energy saved</span><b class="g">9.4 kWh</b></div>
+          </div>
+        </section>
+        <section class="card">
+          <h3>Recent Activity</h3>
+          <ul class="activity" id="activity"></ul>
+          <button class="key full" style="margin-top:16px">View all activity</button>
+        </section>
+      </aside>
+    </div>
+  </main>
+</div>
+<script src="./app.js"></script>
+</body>
+</html>

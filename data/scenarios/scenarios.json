@@ -1,0 +1,28 @@
+{
+  "scenarios": [
+    {
+      "name": "Low Traffic",
+      "description": "Sparse traffic demand across all network zones with zero congestion bottlenecks.",
+      "default_vehicles": 20,
+      "recommended_ticks": 100
+    },
+    {
+      "name": "Normal Traffic",
+      "description": "Standard balanced urban commute between residential suburbs and commercial centers.",
+      "default_vehicles": 40,
+      "recommended_ticks": 140
+    },
+    {
+      "name": "Rush Hour",
+      "description": "Heavy inbound commute from suburbs across the central river bridge into Downtown and Financial Core.",
+      "default_vehicles": 70,
+      "recommended_ticks": 180
+    },
+    {
+      "name": "Uneven Traffic",
+      "description": "85%+ concentrated demand targeting a single hub, creating severe localized queueing.",
+      "default_vehicles": 50,
+      "recommended_ticks": 150
+    }
+  ]
+}
